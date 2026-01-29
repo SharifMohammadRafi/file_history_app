@@ -21,13 +21,13 @@ class AppTheme {
       ),
       // NOTE: CardThemeData instead of CardTheme
       cardTheme: CardThemeData(
-        color: base.colorScheme.surfaceVariant,
+        color: base.colorScheme.surfaceContainerHighest,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: base.colorScheme.surfaceVariant,
+        fillColor: base.colorScheme.surfaceContainerHighest,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
@@ -71,13 +71,13 @@ class AppTheme {
       ),
       // NOTE: CardThemeData here as well
       cardTheme: CardThemeData(
-        color: base.colorScheme.surfaceVariant.withOpacity(0.9),
+        color: base.colorScheme.surfaceContainerHighest.withAlpha(230),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: base.colorScheme.surfaceVariant.withOpacity(0.8),
+        fillColor: base.colorScheme.surfaceContainerHighest.withAlpha(204),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,

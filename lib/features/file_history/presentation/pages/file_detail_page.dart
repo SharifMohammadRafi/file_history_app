@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:file_history_app/core/utils/format_utils.dart';
 import 'package:file_history_app/features/file_history/data/text_extractor.dart';
@@ -9,7 +10,7 @@ import 'package:file_history_app/features/file_history/domain/entities/processed
 class FileDetailPage extends StatefulWidget {
   final ProcessedFile file;
 
-  const FileDetailPage({Key? key, required this.file}) : super(key: key);
+  const FileDetailPage({super.key, required this.file});
 
   @override
   State<FileDetailPage> createState() => _FileDetailPageState();
@@ -50,122 +51,219 @@ class _FileDetailPageState extends State<FileDetailPage> {
   Widget build(BuildContext context) {
     final file = widget.file;
     final typeLabel = _typeLabel(file.type);
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(title: Text(file.name)),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          ListTile(title: const Text('File name'), subtitle: Text(file.name)),
-          ListTile(title: const Text('Path'), subtitle: Text(file.path)),
-          ListTile(title: const Text('Type'), subtitle: Text(typeLabel)),
-          ListTile(
-            title: const Text('Size'),
-            subtitle: Text(formatBytes(file.sizeBytes)),
-          ),
-          ListTile(
-            title: const Text('Created at (first seen)'),
-            subtitle: Text(formatDateTime(file.createdAt)),
-          ),
-          if (file.lastOpenedAt != null)
-            ListTile(
-              title: const Text('Last opened'),
-              subtitle: Text(formatDateTime(file.lastOpenedAt!)),
-            ),
-          ListTile(
-            title: const Text('Exists on disk'),
-            subtitle: Text(file.existsOnDisk ? 'Yes' : 'No (Missing)'),
-          ),
-          ListTile(
-            title: const Text('Favorite'),
-            subtitle: Text(file.isFavorite ? 'Yes' : 'No'),
-          ),
-          const SizedBox(height: 16),
-
-          if (file.type == ProcessedFileType.image && file.existsOnDisk)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Image preview',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                AspectRatio(
-                  aspectRatio: 3 / 4,
-                  child: Image.file(File(file.path), fit: BoxFit.contain),
-                ),
-                const SizedBox(height: 16),
-              ],
-            ),
-
-          FutureBuilder<String?>(
-            future: _textFuture,
-            builder: (context, snapshot) {
-              final titleText = Text(
-                'Extracted text',
-                style: Theme.of(context).textTheme.titleMedium,
-              );
-
-              if (!file.existsOnDisk) {
-                return Column(
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // ----- DETAILS CARD -----
+            Card(
+              elevation: 0,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    titleText,
-                    const SizedBox(height: 8),
-                    const Text('File is missing on disk.'),
-                  ],
-                );
-              }
-
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    titleText,
-                    const SizedBox(height: 8),
-                    const LinearProgressIndicator(),
-                  ],
-                );
-              }
-
-              if (snapshot.hasError) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    titleText,
-                    const SizedBox(height: 8),
                     Text(
-                      'Error: ${snapshot.error}',
-                      style: const TextStyle(color: Colors.red),
+                      'Details',
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
+                    const SizedBox(height: 12),
+                    _detailRow('File name', file.name),
+                    _detailRow('Path', file.path),
+                    _detailRow('Type', typeLabel),
+                    _detailRow('Size', formatBytes(file.sizeBytes)),
+                    _detailRow(
+                      'Created at (first seen)',
+                      formatDateTime(file.createdAt),
+                    ),
+                    if (file.lastOpenedAt != null)
+                      _detailRow(
+                        'Last opened',
+                        formatDateTime(file.lastOpenedAt!),
+                      ),
+                    _detailRow(
+                      'Exists on disk',
+                      file.existsOnDisk ? 'Yes' : 'No (Missing)',
+                    ),
+                    _detailRow('Favorite', file.isFavorite ? 'Yes' : 'No'),
                   ],
-                );
-              }
+                ),
+              ),
+            ),
 
-              final text = (snapshot.data ?? '').trim();
+            const SizedBox(height: 12),
 
-              if (text.isEmpty) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    titleText,
-                    const SizedBox(height: 8),
-                    const Text('No text detected or file contains no text.'),
-                  ],
-                );
-              }
+            // ----- IMAGE PREVIEW CARD -----
+            if (file.type == ProcessedFileType.image && file.existsOnDisk)
+              Card(
+                elevation: 0,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Image preview',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: AspectRatio(
+                          aspectRatio: 3 / 4,
+                          child: Image.file(
+                            File(file.path),
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
 
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  titleText,
-                  const SizedBox(height: 8),
-                  SelectableText(text, style: const TextStyle(height: 1.4)),
-                ],
-              );
-            },
+            if (file.type == ProcessedFileType.image && file.existsOnDisk)
+              const SizedBox(height: 12),
+
+            // ----- EXTRACTED TEXT CARD -----
+            Card(
+              elevation: 0,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: FutureBuilder<String?>(
+                  future: _textFuture,
+                  builder: (context, snapshot) {
+                    final titleRow = Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Extracted text',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        // Copy button only when we have non-empty text
+                        if (snapshot.connectionState == ConnectionState.done &&
+                            snapshot.hasData &&
+                            (snapshot.data ?? '').trim().isNotEmpty &&
+                            file.existsOnDisk)
+                          IconButton(
+                            tooltip: 'Copy text',
+                            icon: const Icon(Icons.copy_rounded),
+                            onPressed: () {
+                              final text = (snapshot.data ?? '').trim();
+                              Clipboard.setData(ClipboardData(text: text));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Text copied to clipboard'),
+                                ),
+                              );
+                            },
+                          ),
+                      ],
+                    );
+
+                    if (!file.existsOnDisk) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          titleRow,
+                          const SizedBox(height: 8),
+                          const Text('File is missing on disk.'),
+                        ],
+                      );
+                    }
+
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          titleRow,
+                          const SizedBox(height: 8),
+                          const LinearProgressIndicator(),
+                        ],
+                      );
+                    }
+
+                    if (snapshot.hasError) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          titleRow,
+                          const SizedBox(height: 8),
+                          Text(
+                            'Error: ${snapshot.error}',
+                            style: const TextStyle(color: Colors.redAccent),
+                          ),
+                        ],
+                      );
+                    }
+
+                    final text = (snapshot.data ?? '').trim();
+
+                    if (text.isEmpty) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          titleRow,
+                          const SizedBox(height: 8),
+                          const Text(
+                            'No text detected or file contains no text.',
+                          ),
+                        ],
+                      );
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        titleRow,
+                        const SizedBox(height: 8),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceContainerHighest
+                                .withAlpha(153),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: colorScheme.outlineVariant.withAlpha(204),
+                            ),
+                          ),
+                          padding: const EdgeInsets.all(12),
+                          child: SelectableText(
+                            text,
+                            style: const TextStyle(height: 1.4),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0.1,
+            ),
           ),
+          const SizedBox(height: 2),
+          Text(value, style: const TextStyle(fontSize: 14)),
         ],
       ),
     );

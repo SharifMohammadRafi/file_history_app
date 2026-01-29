@@ -10,12 +10,13 @@ import 'package:file_history_app/features/file_history/presentation/bloc/file_hi
 import 'package:file_history_app/features/file_history/presentation/bloc/file_history_event.dart';
 import 'package:file_history_app/features/file_history/presentation/bloc/file_history_state.dart';
 import 'package:file_history_app/features/file_history/presentation/pages/file_detail_page.dart';
+import 'package:file_history_app/features/file_history/presentation/pages/starred_files_page.dart';
 import 'package:file_history_app/features/file_history/presentation/widgets/file_list_item.dart';
 
 enum _ScanSource { camera, file }
 
 class FileHistoryPage extends StatelessWidget {
-  const FileHistoryPage({Key? key}) : super(key: key);
+  const FileHistoryPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +35,10 @@ class FileHistoryPage extends StatelessWidget {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('File History'),
+          title: const Text(
+            'File History App',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
           actions: [
             IconButton(
               tooltip: 'View starred items',
@@ -109,7 +113,7 @@ class FileHistoryPage extends StatelessWidget {
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
                                     color: colorScheme.onSurfaceVariant
-                                        .withOpacity(0.8),
+                                        .withAlpha(204),
                                   ),
                             ),
                           ],
@@ -310,86 +314,5 @@ class FileHistoryPage extends StatelessWidget {
     if (!await f.exists()) return null;
 
     return file.path!;
-  }
-}
-
-/// Page that shows only favorite (starred) files.
-class StarredFilesPage extends StatelessWidget {
-  const StarredFilesPage({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Starred files')),
-      body: SafeArea(
-        child: BlocBuilder<FileHistoryBloc, FileHistoryState>(
-          builder: (context, state) {
-            final favorites = state.files
-                .where((f) => f.isFavorite)
-                .toList(growable: false);
-
-            if (favorites.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.star_outline_rounded,
-                      size: 56,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'No starred files yet',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Mark files as favorite to see them here.',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant.withOpacity(0.8),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            return ListView.builder(
-              physics: const AlwaysScrollableScrollPhysics(),
-              itemCount: favorites.length,
-              itemBuilder: (context, index) {
-                final file = favorites[index];
-                return FileListItem(
-                  index: index + 1, // serial number in favorites list
-                  file: file,
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => FileDetailPage(file: file),
-                      ),
-                    );
-                  },
-                  onFavoriteToggle: () {
-                    context.read<FileHistoryBloc>().add(
-                      FileHistoryFavoriteToggled(file.path),
-                    );
-                  },
-                  onDelete: () {
-                    context.read<FileHistoryBloc>().add(
-                      FileHistoryFileDeleted(file.path),
-                    );
-                  },
-                );
-              },
-            );
-          },
-        ),
-      ),
-    );
   }
 }

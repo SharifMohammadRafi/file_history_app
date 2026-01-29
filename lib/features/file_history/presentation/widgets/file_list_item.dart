@@ -4,20 +4,20 @@ import 'package:file_history_app/core/utils/format_utils.dart';
 import 'package:file_history_app/features/file_history/domain/entities/processed_file.dart';
 
 class FileListItem extends StatelessWidget {
-  final int index; // 1-based index for serial number
+  final int index;
   final ProcessedFile file;
   final VoidCallback onTap;
   final VoidCallback onFavoriteToggle;
   final VoidCallback onDelete;
 
   const FileListItem({
-    Key? key,
+    super.key,
     required this.index,
     required this.file,
     required this.onTap,
     required this.onFavoriteToggle,
     required this.onDelete,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +55,9 @@ class FileListItem extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer.withOpacity(0.8),
+                  color: colorScheme.primaryContainer.withAlpha(
+                    204,
+                  ), // 204 is 80% of 255
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
@@ -82,7 +84,7 @@ class FileListItem extends StatelessWidget {
                             : TextDecoration.lineThrough,
                         color: file.existsOnDisk
                             ? null
-                            : colorScheme.onSurface.withOpacity(0.6),
+                            : colorScheme.onSurface.withAlpha(153),
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -116,7 +118,7 @@ class FileListItem extends StatelessWidget {
               IconButton(
                 icon: Icon(
                   Icons.delete_outline_rounded,
-                  color: colorScheme.error.withOpacity(0.9),
+                  color: colorScheme.error.withAlpha(230),
                   size: 22,
                 ),
                 tooltip: 'Delete from history',
@@ -136,7 +138,6 @@ class FileListItem extends StatelessWidget {
       case ProcessedFileType.image:
         return 'Image';
       case ProcessedFileType.other:
-      default:
         return 'Other';
     }
   }
@@ -148,7 +149,6 @@ class FileListItem extends StatelessWidget {
       case ProcessedFileType.image:
         return Icons.image_rounded;
       case ProcessedFileType.other:
-      default:
         return Icons.insert_drive_file_rounded;
     }
   }

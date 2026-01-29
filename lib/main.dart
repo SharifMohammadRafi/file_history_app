@@ -25,7 +25,7 @@ void main() async {
 class MyApp extends StatelessWidget {
   final FileHistoryRepository repository;
 
-  const MyApp({Key? key, required this.repository}) : super(key: key);
+  const MyApp({super.key, required this.repository});
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +38,7 @@ class MyApp extends StatelessWidget {
           title: 'File History',
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
-          themeMode: ThemeMode.system, // follow system light/dark
+          themeMode: ThemeMode.system,
           debugShowCheckedModeBanner: false,
           home: const FileHistoryPage(),
         ),
