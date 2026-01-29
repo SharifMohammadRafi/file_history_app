@@ -18,16 +18,6 @@ Everything is stored locally (no backend/API).
 
 ---
 
-## Screenshots
-
-> Add real screenshots later, e.g.:
-
-- History list (all files)
-- Starred files list
-- File details with extracted text (image + PDF)
-
----
-
 ## Features
 
 ### 1. File History
