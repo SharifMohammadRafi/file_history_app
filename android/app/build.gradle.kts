@@ -22,8 +22,7 @@ android {
     defaultConfig {
         applicationId = "com.example.file_history_app"
 
-        // IMPORTANT: force minSdk = 28.
-        // Don't rely on any manifest or on flutter.minSdkVersion here.
+        // Force minSdk = 28 (required by simplest_document_scanner).
         minSdk = 28
 
         targetSdk = flutter.targetSdkVersion
@@ -33,7 +32,11 @@ android {
 
     buildTypes {
         release {
-            // Signing with debug keys so `flutter run --release` works.
+            // Disable shrinking / obfuscation to avoid R8 missing-classes issues
+            isMinifyEnabled = false
+            isShrinkResources = false
+
+            // Signing with debug keys so `flutter run --release` and `flutter build apk --release` work
             signingConfig = signingConfigs.getByName("debug")
         }
     }
