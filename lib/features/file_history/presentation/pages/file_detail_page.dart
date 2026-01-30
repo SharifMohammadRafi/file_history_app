@@ -1,11 +1,14 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'package:file_history_app/core/utils/format_utils.dart';
 import 'package:file_history_app/features/file_history/data/text_extractor.dart';
 import 'package:file_history_app/features/file_history/domain/entities/processed_file.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 class FileDetailPage extends StatefulWidget {
   final ProcessedFile file;
@@ -24,6 +27,8 @@ class _FileDetailPageState extends State<FileDetailPage> {
     super.initState();
     _textFuture = _loadExtractedText();
   }
+
+  String get _displayName => widget.file.name.replaceAll('_', ' ');
 
   Future<String?> _loadExtractedText() async {
     final file = widget.file;
@@ -47,6 +52,239 @@ class _FileDetailPageState extends State<FileDetailPage> {
     }
   }
 
+  Future<bool> _ensureStoragePermission() async {
+    final status = await Permission.storage.request();
+    if (status.isGranted) return true;
+
+    if (!mounted) return false;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Storage permission is required to save files.'),
+      ),
+    );
+    return false;
+  }
+
+  Future<Directory?> _getDownloadsDirectory() async {
+    final dir = Directory('/storage/emulated/0/Download');
+    if (await dir.exists()) return dir;
+    return null;
+  }
+
+  Future<bool> _confirmSaveDialog(String fileName) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (ctx) {
+            return AlertDialog(
+              title: const Text('Save file'),
+              content: Text(
+                'Do you want to save "$fileName" to your Downloads folder?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+  }
+
+  /// Export the extracted text as a new text-only PDF (for PDF files).
+  Future<void> _exportTextAsPdf() async {
+    final file = widget.file;
+
+    if (!file.existsOnDisk) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('File is missing on disk.')));
+      return;
+    }
+
+    if (file.type != ProcessedFileType.pdf) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Export text PDF is only for PDFs.')),
+      );
+      return;
+    }
+
+    if (!await _ensureStoragePermission()) return;
+
+    final text = ((await _textFuture) ?? '').trim();
+    if (text.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No text available to export.')),
+      );
+      return;
+    }
+
+    final originalFile = File(file.path);
+    final name = originalFile.uri.pathSegments.last;
+    String baseName = name;
+    final dotIndex = baseName.lastIndexOf('.');
+    if (dotIndex != -1) {
+      baseName = baseName.substring(0, dotIndex);
+    }
+    final outFileName = '${baseName}_text.pdf';
+
+    final userConfirmed = await _confirmSaveDialog(
+      outFileName.replaceAll('_', ' '),
+    );
+    if (!userConfirmed) return;
+
+    try {
+      final downloadsDir = await _getDownloadsDirectory();
+      if (downloadsDir == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Downloads folder not found on this device.'),
+          ),
+        );
+        return;
+      }
+
+      final document = PdfDocument();
+      final page = document.pages.add();
+      final pageSize = page.getClientSize();
+
+      final font = PdfStandardFont(PdfFontFamily.helvetica, 12);
+      final brush = PdfSolidBrush(PdfColor(0, 0, 0));
+      final textElement = PdfTextElement(text: text, font: font, brush: brush);
+
+      final layoutFormat = PdfLayoutFormat(layoutType: PdfLayoutType.paginate);
+
+      textElement.draw(
+        page: page,
+        bounds: ui.Rect.fromLTWH(0, 0, pageSize.width, pageSize.height),
+        format: layoutFormat,
+      );
+
+      final bytes = await document.save();
+      document.dispose();
+
+      final outPath = '${downloadsDir.path}/$outFileName';
+      final outFile = File(outPath);
+      await outFile.writeAsBytes(bytes, flush: true);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Text PDF saved to:\n$outPath')));
+    } catch (e, st) {
+      debugPrint('[FileDetailPage] Error exporting text PDF: $e\n$st');
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to export text PDF: $e')));
+    }
+  }
+
+  /// Export an image file as a one-page PDF (for image files).
+  Future<void> _exportImageAsPdf() async {
+    final file = widget.file;
+
+    if (!file.existsOnDisk) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('File is missing on disk.')));
+      return;
+    }
+
+    if (file.type != ProcessedFileType.image) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Export image PDF is only for images.')),
+      );
+      return;
+    }
+
+    if (!await _ensureStoragePermission()) return;
+
+    final imageFile = File(file.path);
+    final name = imageFile.uri.pathSegments.last;
+    String baseName = name;
+    final dotIndex = baseName.lastIndexOf('.');
+    if (dotIndex != -1) {
+      baseName = baseName.substring(0, dotIndex);
+    }
+    final outFileName = '${baseName}_image.pdf';
+
+    final userConfirmed = await _confirmSaveDialog(
+      outFileName.replaceAll('_', ' '),
+    );
+    if (!userConfirmed) return;
+
+    try {
+      final downloadsDir = await _getDownloadsDirectory();
+      if (downloadsDir == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Downloads folder not found on this device.'),
+          ),
+        );
+        return;
+      }
+
+      final imageBytes = await imageFile.readAsBytes();
+
+      final document = PdfDocument();
+      final page = document.pages.add();
+      final pageSize = page.getClientSize();
+
+      final pdfImage = PdfBitmap(imageBytes);
+
+      final imgWidth = pdfImage.width.toDouble();
+      final imgHeight = pdfImage.height.toDouble();
+      final pageRatio = pageSize.width / pageSize.height;
+      final imgRatio = imgWidth / imgHeight;
+
+      double drawWidth;
+      double drawHeight;
+
+      if (imgRatio > pageRatio) {
+        drawWidth = pageSize.width;
+        drawHeight = drawWidth / imgRatio;
+      } else {
+        drawHeight = pageSize.height;
+        drawWidth = drawHeight * imgRatio;
+      }
+
+      final dx = (pageSize.width - drawWidth) / 2;
+      final dy = (pageSize.height - drawHeight) / 2;
+
+      page.graphics.drawImage(
+        pdfImage,
+        ui.Rect.fromLTWH(dx, dy, drawWidth, drawHeight),
+      );
+
+      final bytes = await document.save();
+      document.dispose();
+
+      final outPath = '${downloadsDir.path}/$outFileName';
+      final outFile = File(outPath);
+      await outFile.writeAsBytes(bytes, flush: true);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Image PDF saved to:\n$outPath')));
+    } catch (e, st) {
+      debugPrint('[FileDetailPage] Error exporting image PDF: $e\n$st');
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to export image PDF: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final file = widget.file;
@@ -54,12 +292,27 @@ class _FileDetailPageState extends State<FileDetailPage> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: Text(file.name)),
+      appBar: AppBar(
+        title: Text(_displayName),
+        actions: [
+          if (file.type == ProcessedFileType.pdf && file.existsOnDisk)
+            IconButton(
+              tooltip: 'Download text as PDF',
+              icon: const Icon(Icons.download_rounded),
+              onPressed: _exportTextAsPdf,
+            ),
+          if (file.type == ProcessedFileType.image && file.existsOnDisk)
+            IconButton(
+              tooltip: 'Download image as PDF',
+              icon: const Icon(Icons.picture_as_pdf_rounded),
+              onPressed: _exportImageAsPdf,
+            ),
+        ],
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // ----- DETAILS CARD -----
             Card(
               elevation: 0,
               child: Padding(
@@ -72,7 +325,7 @@ class _FileDetailPageState extends State<FileDetailPage> {
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 12),
-                    _detailRow('File name', file.name),
+                    _detailRow('File name', _displayName),
                     _detailRow('Path', file.path),
                     _detailRow('Type', typeLabel),
                     _detailRow('Size', formatBytes(file.sizeBytes)),
@@ -97,7 +350,6 @@ class _FileDetailPageState extends State<FileDetailPage> {
 
             const SizedBox(height: 12),
 
-            // ----- IMAGE PREVIEW CARD -----
             if (file.type == ProcessedFileType.image && file.existsOnDisk)
               Card(
                 elevation: 0,
@@ -129,7 +381,6 @@ class _FileDetailPageState extends State<FileDetailPage> {
             if (file.type == ProcessedFileType.image && file.existsOnDisk)
               const SizedBox(height: 12),
 
-            // ----- EXTRACTED TEXT CARD -----
             Card(
               elevation: 0,
               child: Padding(
@@ -137,14 +388,19 @@ class _FileDetailPageState extends State<FileDetailPage> {
                 child: FutureBuilder<String?>(
                   future: _textFuture,
                   builder: (context, snapshot) {
+                    final titleLabel = file.type == ProcessedFileType.pdf
+                        ? 'Extracted text (PDF)'
+                        : file.type == ProcessedFileType.image
+                        ? 'Extracted text (image)'
+                        : 'Extracted text';
+
                     final titleRow = Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Extracted text',
+                          titleLabel,
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
-                        // Copy button only when we have non-empty text
                         if (snapshot.connectionState == ConnectionState.done &&
                             snapshot.hasData &&
                             (snapshot.data ?? '').trim().isNotEmpty &&
@@ -223,11 +479,12 @@ class _FileDetailPageState extends State<FileDetailPage> {
                         const SizedBox(height: 8),
                         Container(
                           decoration: BoxDecoration(
-                            color: colorScheme.surfaceContainerHighest
-                                .withAlpha(153),
+                            color: colorScheme.surfaceVariant.withOpacity(0.6),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: colorScheme.outlineVariant.withAlpha(204),
+                              color: colorScheme.outlineVariant.withOpacity(
+                                0.8,
+                              ),
                             ),
                           ),
                           padding: const EdgeInsets.all(12),
